@@ -1,0 +1,51 @@
+import tensorflow as tf
+from tensorflow.contrib import slim
+from models.mobilenet import mobilenet_v1_arg_scope, mobilenet_v1_base, Conv, DepthSepConv
+
+# _CONV_DEFS specifies the MobileNet body
+_CONV_DEFS = [
+    Conv(kernel=[3, 3], stride=1, depth=32),
+    DepthSepConv(kernel=[3, 3], stride=1, depth=64),
+    DepthSepConv(kernel=[3, 3], stride=2, depth=128),
+    DepthSepConv(kernel=[3, 3], stride=1, depth=128),
+    DepthSepConv(kernel=[3, 3], stride=2, depth=256),
+    DepthSepConv(kernel=[3, 3], stride=1, depth=256),
+    DepthSepConv(kernel=[3, 3], stride=2, depth=512),
+    DepthSepConv(kernel=[3, 3], stride=1, depth=512),
+    DepthSepConv(kernel=[3, 3], stride=1, depth=512),
+    DepthSepConv(kernel=[3, 3], stride=1, depth=512),
+    DepthSepConv(kernel=[3, 3], stride=1, depth=512),
+    DepthSepConv(kernel=[3, 3], stride=1, depth=512),
+    DepthSepConv(kernel=[3, 3], stride=2, depth=1024),
+    DepthSepConv(kernel=[3, 3], stride=1, depth=1024)
+]
+
+
+def build_arg_scope(weight_decay=0.00004):
+    return mobilenet_v1_arg_scope(weight_decay=weight_decay)
+
+
+def build_net(images, n_class=None, is_training=True, reuse=False, scope='mobilenet_half'):
+
+    with tf.variable_scope(scope, reuse=reuse) as vscope:
+
+        with slim.arg_scope([slim.batch_norm], is_training=is_training):
+
+            net, endpoints = mobilenet_v1_base(images, depth_multiplier=0.5, conv_defs=_CONV_DEFS, scope=vscope)
+
+            net = slim.flatten(net)
+
+            net = slim.fully_connected(
+                net, 512,
+                weights_initializer=tf.truncated_normal_initializer(stddev=0.001),
+                activation_fn=None, scope='fc5'
+            ) 
+
+            if isinstance(n_class, int):
+                net = slim.fully_connected(net, n_class, activation_fn=None, scope='logits')
+
+            # add summarys
+            slim.summarize_collection(tf.GraphKeys.MODEL_VARIABLES)
+            
+            return net
+
